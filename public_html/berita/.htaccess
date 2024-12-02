@@ -1,0 +1,3 @@
+DirectoryIndex index.html
+RewriteEngine On
+RewriteRule ^berita/([a-zA-Z0-9_-]+)$ detail_berita.php?slug=$1 [L]

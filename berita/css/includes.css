@@ -1,0 +1,106 @@
+/* css/styles.css */
+
+/* Font */
+body {
+    font-family: 'Poppins', sans-serif;
+}
+
+/* News Ticker */
+.news-ticker {
+    background-color: #f8f9fa;
+    color: #343a40;
+}
+
+.news-ticker p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.clock {
+    font-weight: bold;
+}
+
+/* Navbar Separator */
+.navbar-separator {
+    height: 4px;
+    background: linear-gradient(90deg, #ffc107, #dc3545);
+}
+
+/* Nama Dinas Section */
+.nama-dinas h3, .nama-dinas h4 {
+    font-weight: 600;
+}
+
+/* Footer Styling */
+footer .footer h5 {
+    font-weight: bold;
+}
+
+footer a {
+    color: #ffffff;
+    transition: color 0.3s;
+}
+
+footer a:hover {
+    color: #ffc107;
+    text-decoration: none;
+}
+
+footer .social-icons a {
+    font-size: 1.2rem;
+    margin-right: 15px;
+    transition: color 0.3s;
+}
+
+footer .social-icons a:hover {
+    color: #ffc107;
+}
+
+/* Dark Mode Styling */
+body.dark-mode {
+    background-color: #121212;
+    color: #ffffff;
+}
+
+body.dark-mode .navbar {
+    background-color: #1f1f1f;
+}
+
+body.dark-mode .footer {
+    background-color: #1f1f1f;
+}
+
+body.dark-mode a {
+    color: #ffffff;
+}
+
+body.dark-mode a:hover {
+    color: #ffc107;
+}
+
+/* Related Articles */
+.related-article h4 a {
+    text-decoration: none;
+    color: #007bff;
+}
+
+.related-article h4 a:hover {
+    text-decoration: underline;
+}
+
+/* Polling Progress Bars */
+.poll-container .progress {
+    height: 25px;
+}
+
+.poll-container .progress-bar {
+    line-height: 25px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 767.98px) {
+    .navbar .nav-link {
+        padding-right: 0.5rem;
+        padding-left: 0.5rem;
+    }
+}

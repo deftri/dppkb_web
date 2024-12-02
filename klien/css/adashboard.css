@@ -1,0 +1,78 @@
+body {
+    background-color: #f8fafc;
+    font-family: 'Poppins', sans-serif;
+}
+.container {
+    max-width: 800px;
+    margin: 50px auto;
+}
+.user-info {
+    background-color: #007bff;
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    text-align: center;
+    font-weight: 600;
+}
+.feedback {
+    margin-top: 20px;
+}
+.card {
+    margin-top: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+.btn-primary, .btn-success {
+    font-weight: 500;
+    transition: all 0.3s;
+}
+.btn-primary:hover, .btn-success:hover {
+    transform: translateY(-3px);
+}
+.rating-star label {
+    font-size: 1.5rem;
+    color: #000;
+    cursor: pointer;
+    transition: color 0.3s, transform 0.3s;
+}
+.rating-star input[type="radio"] {
+    display: none;
+}
+.rating-star label:hover,
+.rating-star label:hover ~ label,
+.rating-star input[type="radio"]:checked ~ label {
+    color: #ffc107;
+    transform: scale(1.2);
+}
+.logout-button {
+    background-color: #ff5a5a;
+    color: #fff;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    width: 100%;
+    font-weight: bold;
+    transition: 0.3s ease-in-out;
+}
+.logout-button:hover {
+    background-color: #ff3333;
+}
+.rating-section {
+    display: flex;
+    gap: 15px;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+.rating-card {
+    flex: 1;
+    min-width: 320px;
+    background-color: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}

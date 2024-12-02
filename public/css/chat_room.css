@@ -1,0 +1,20 @@
+/* Download Button Styling */
+.download-button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.download-button img {
+    width: 1px; /* Disesuaikan dari 20px menjadi 5px */
+    height: 1px; /* Disesuaikan dari 20px menjadi 5px */
+}
+
+/* Pada media query untuk layar kecil, sedikit menyesuaikan ukuran ikon */
+@media (max-width: 480px) {
+    .download-button img {
+        width: 10px; /* Menyesuaikan sedikit untuk keterbacaan */
+        height: 10px;
+    }
+}
+
