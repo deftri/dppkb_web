@@ -99,7 +99,7 @@ $page_title = ucfirst(str_replace(['.php', 'index'], '', basename($_SERVER['PHP_
                     </li>
                     <li class="nav-item layanan">
                         <a class="nav-link <?php echo ($halaman == 'layanan' ? 'active' : ''); ?>" href="../public/sinderela.menu.php">
-                            <img src="images/navsinderela.png" alt="Sinderela" style="width: 100px; height: auto;">
+                            <img src="images/navsinderela.png" alt="Sinderela" style="width: 110px; height: 40px;">
                         </a>
                     </li>
 
