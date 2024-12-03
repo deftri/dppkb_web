@@ -94,9 +94,15 @@ $page_title = ucfirst(str_replace(['.php', 'index'], '', basename($_SERVER['PHP_
                     <li class="nav-item">
                         <a class="nav-link <?php echo ($halaman == 'program' ? 'active' : ''); ?>" href="program.php">Program</a>
                     </li>
-                    <li class="nav-item layanan">
-                        <a class="nav-link <?php echo ($halaman == 'layanan' ? 'active' : ''); ?>" href="../public/sinderela.menu.php">SINDERELA</a>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo ($halaman == 'berita' ? 'active' : ''); ?>" href="kumpulan_berita.php">Berita</a>
                     </li>
+                    <li class="nav-item layanan">
+                        <a class="nav-link <?php echo ($halaman == 'layanan' ? 'active' : ''); ?>" href="../public/sinderela.menu.php">
+                            <img src="images/navsinderela.png" alt="Sinderela" style="width: 100px; height: auto;">
+                        </a>
+                    </li>
+
 
                     <li class="nav-item">
                         <a class="nav-link <?php echo ($halaman == 'galeri' ? 'active' : ''); ?>" href="galeri.php">Galeri</a>
