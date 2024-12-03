@@ -277,28 +277,7 @@ if ($stmt_avg) {
                 <?php endif; ?>
 
                 <!-- Rating -->
-                <div class="mt-4">
-                    <h4>Rating: <?php echo $avg_rating > 0 ? round($avg_rating, 1) : "Belum ada rating"; ?> / 5</h4>
-                    <p>Total Rating: <?php echo htmlspecialchars($count_rating); ?></p>
-                    <!-- Form Beri Rating -->
-                    <form method="POST" action="detail_berita.php?id=<?php echo htmlspecialchars($id); ?>" class="mb-4">
-                        <div class="form-group">
-                            <label for="rating">Beri Rating:</label>
-                            <select name="rating" id="rating" class="form-control w-25" required>
-                                <option value="" disabled selected>Pilih Rating</option>
-                                <option value="1">1 - Sangat Buruk</option>
-                                <option value="2">2 - Buruk</option>
-                                <option value="3">3 - Cukup</option>
-                                <option value="4">4 - Baik</option>
-                                <option value="5">5 - Sangat Baik</option>
-                            </select>
-                        </div>
-                        <button type="submit" name="submit_rating" class="btn btn-success">Kirim Rating</button>
-                        <?php if (isset($error_rating)): ?>
-                            <div class="alert alert-danger mt-2"><?php echo htmlspecialchars($error_rating); ?></div>
-                        <?php endif; ?>
-                    </form>
-                </div>
+                
 
                 <!-- Form Tambahkan Komentar -->
                 <div class="mt-4">
@@ -462,6 +441,30 @@ if ($stmt_avg) {
                         echo "</div>";
                     }
                     ?>
+
+                    
+                </div>
+                <div class="mt-4">
+                    <h4>Rating: <?php echo $avg_rating > 0 ? round($avg_rating, 1) : "Belum ada rating"; ?> / 5</h4>
+                    <p>Total Rating: <?php echo htmlspecialchars($count_rating); ?></p>
+                    <!-- Form Beri Rating -->
+                    <form method="POST" action="detail_berita.php?id=<?php echo htmlspecialchars($id); ?>" class="mb-4">
+                        <div class="form-group">
+                            <label for="rating">Beri Rating:</label>
+                            <select name="rating" id="rating" class="form-control w-25" required>
+                                <option value="" disabled selected>Pilih Rating</option>
+                                <option value="1">1 - Sangat Buruk</option>
+                                <option value="2">2 - Buruk</option>
+                                <option value="3">3 - Cukup</option>
+                                <option value="4">4 - Baik</option>
+                                <option value="5">5 - Sangat Baik</option>
+                            </select>
+                        </div>
+                        <button type="submit" name="submit_rating" class="btn btn-success">Kirim Rating</button>
+                        <?php if (isset($error_rating)): ?>
+                            <div class="alert alert-danger mt-2"><?php echo htmlspecialchars($error_rating); ?></div>
+                        <?php endif; ?>
+                    </form>
                 </div>
             <?php endif; ?>
         </div>

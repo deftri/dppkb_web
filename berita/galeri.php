@@ -1,186 +1,147 @@
 <?php
-session_start();
-include '../config/config.php'; // Pastikan path ke config sudah benar
+// Koneksi ke database
+include '../config/config.php';
 
-// Pastikan hanya admin yang dapat mengakses halaman ini
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    $_SESSION['error'] = "Anda tidak memiliki izin untuk mengakses halaman ini.";
-    header("Location: admin_dashboard.php"); // Redirect ke dashboard admin
-    exit();
-}
-
-// Inisialisasi pesan error dan sukses
-$message = '';
-$error = '';
-
-// Memproses data jika ada pengiriman form
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Mengamankan dan mengambil data input
-    $caption = mysqli_real_escape_string($conn, trim($_POST['caption']));
-    $jenis = mysqli_real_escape_string($conn, trim($_POST['jenis']));
-
-    // Validasi input
-    if (empty($caption) || empty($jenis)) {
-        $error = "Semua field harus diisi.";
-    } elseif (!isset($_FILES['gambar']) || $_FILES['gambar']['error'] != 0) {
-        $error = "Gambar harus diunggah.";
-    } else {
-        // Proses upload gambar
-        $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-        $max_size = 2 * 1024 * 1024; // 2MB
-
-        $file_tmp = $_FILES['gambar']['tmp_name'];
-        $file_name = basename($_FILES['gambar']['name']);
-        $file_size = $_FILES['gambar']['size'];
-        $file_type = $_FILES['gambar']['type'];
-
-        // Validasi tipe dan ukuran file
-        if (!in_array($file_type, $allowed_types)) {
-            $error = "Tipe file tidak diperbolehkan. Hanya JPG, PNG, dan GIF yang diperbolehkan.";
-        } elseif ($file_size > $max_size) {
-            $error = "Ukuran file terlalu besar. Maksimal 2MB.";
-        } else {
-            // Tentukan direktori upload
-            $upload_dir = '../uploads/galeri/'; // Pastikan direktori ini ada dan writable
-
-            // Membuat direktori jika belum ada
-            if (!is_dir($upload_dir)) {
-                mkdir($upload_dir, 0755, true);
-            }
-
-            // Menghindari penamaan file yang sama
-            $file_ext = pathinfo($file_name, PATHINFO_EXTENSION);
-            $new_file_name = uniqid('galeri_', true) . '.' . $file_ext;
-            $target_file = $upload_dir . $new_file_name;
-
-            // Memindahkan file ke direktori tujuan
-            if (move_uploaded_file($file_tmp, $target_file)) {
-                // Menyimpan path relatif ke database
-                $file_path = 'uploads/galeri/' . $new_file_name;
-
-                // Menyimpan data ke database
-                $stmt = $conn->prepare("INSERT INTO galeri (file_path, caption, upload_date, jenis) VALUES (?, ?, NOW(), ?)");
-                if ($stmt) {
-                    $stmt->bind_param("sss", $file_path, $caption, $jenis);
-                    if ($stmt->execute()) {
-                        $_SESSION['message'] = "Gambar berhasil diunggah ke galeri.";
-                        header("Location: kelola_galeri.php");
-                        exit();
-                    } else {
-                        $error = "Gagal menyimpan data ke database: " . htmlspecialchars($stmt->error);
-                        // Hapus file yang sudah diupload jika gagal menyimpan ke database
-                        unlink($target_file);
-                    }
-                    $stmt->close();
-                } else {
-                    $error = "Gagal menyiapkan statement: " . htmlspecialchars($conn->error);
-                    // Hapus file yang sudah diupload jika gagal menyiapkan statement
-                    unlink($target_file);
-                }
-            } else {
-                $error = "Gagal mengunggah gambar.";
-            }
-        }
-    }
-
-    // Menyimpan pesan error jika ada
-    if (!empty($error)) {
-        $_SESSION['error'] = $error;
-        header("Location: tambah_galeri.php");
-        exit();
-    }
-}
+// Ambil data gambar dari tabel galeri
+$sql = "SELECT * FROM galeri ORDER BY upload_date DESC"; // Mengambil semua gambar dari tabel 'galeri'
+$result = $conn->query($sql);
 ?>
+
+<?php include 'includes/header.php' ?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Tambah Galeri</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galeri Foto</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body {
             background-color: #f8f9fa;
             font-family: 'Poppins', sans-serif;
         }
-        .container {
-            max-width: 600px;
-            margin-top: 40px;
+
+        /* Gaya untuk gambar dalam galeri */
+        .gallery img {
+            width: 100%; /* Gambar akan mengisi seluruh lebar kolom */
+            height: 250px; /* Tentukan tinggi gambar secara tetap */
+            object-fit: cover; /* Memastikan gambar terjaga proporsinya */
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        .dark-mode {
-            background-color: #121212;
-            color: #ffffff;
+
+        .gallery img:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
         }
-        .dark-mode .card {
-            background-color: #1e1e1e;
-            border-color: #333;
+
+        /* Gaya untuk setiap card gambar */
+        .gallery .col-md-4 {
+            margin-bottom: 20px;
         }
-        .btn-dark {
-            background-color: #343a40;
-            border-color: #343a40;
+
+        /* Styling untuk card */
+        .card {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
         }
-        .btn-dark:hover {
-            background-color: #23272b;
-            border-color: #1d2124;
+
+        .card-body {
+            text-align: center;
+            padding: 15px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* Styling pagination */
+        .pagination {
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        /* Styling untuk container galeri */
+        .gallery-container {
+            padding: 30px 0;
+        }
+
+        /* Responsif untuk perangkat dengan lebar layar kecil */
+        @media (max-width: 768px) {
+            .gallery .col-md-4 {
+                flex: 1 1 100%; /* Gambar menjadi satu kolom pada layar kecil */
+            }
+
+            .gallery img {
+                height: 200px; /* Mengurangi tinggi gambar di perangkat kecil */
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Tambah Gambar ke Galeri</h1>
-        <a href="kelola_galeri.php" class="btn btn-secondary mb-3">Kembali ke Kelola Galeri</a>
-        
-        <!-- Menampilkan pesan sukses atau error -->
-        <?php
-        if (isset($_SESSION['message'])) {
-            echo "<div class='alert alert-success'>" . htmlspecialchars($_SESSION['message']) . "</div>";
-            unset($_SESSION['message']);
-        }
+    <div class="container mt-5 gallery-container">
+        <h1 class="text-center mb-4">Galeri Foto</h1>
 
-        if (isset($_SESSION['error'])) {
-            echo "<div class='alert alert-danger'>" . htmlspecialchars($_SESSION['error']) . "</div>";
-            unset($_SESSION['error']);
-        }
-        ?>
+        <div class="gallery row">
+            <?php
+            // Cek jika ada gambar di database
+            if ($result->num_rows > 0) {
+                // Output data setiap baris
+                while($row = $result->fetch_assoc()) {
+                    // Ambil informasi gambar
+                    $gambar_url = "" . $row['file_path'];  // Tambahkan folder 'uploads/galeri' sebelum nama file gambar
+                    $caption = $row['caption'];
+            ?>
+                <div class="col-md-4">
+                    <div class="card">
+                        <img src="../<?php echo $gambar_url; ?>" class="card-img-top" alt="<?php echo htmlspecialchars($caption); ?>">
+                        <div class="card-body">
+                            <h5 class="card-title"><?php echo htmlspecialchars($caption); ?></h5>
+                        </div>
+                    </div>
+                </div>
+            <?php
+                }
+            } else {
+                echo "<p class='text-center'>Tidak ada gambar yang tersedia.</p>";
+            }
+            ?>
+        </div>
 
-        <form action="tambah_galeri.php" method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="gambar">Gambar:</label>
-                <input type="file" name="gambar" id="gambar" class="form-control-file" required accept="image/*">
-            </div>
-            <div class="form-group">
-                <label for="caption">Caption:</label>
-                <input type="text" name="caption" id="caption" class="form-control" required value="<?php echo isset($caption) ? htmlspecialchars($caption) : ''; ?>">
-            </div>
-            <div class="form-group">
-                <label for="jenis">Jenis:</label>
-                <select name="jenis" id="jenis" class="form-control" required>
-                    <option value="">-- Pilih Jenis --</option>
-                    <option value="cover">Cover</option>
-                    <option value="logo">Logo</option>
-                    <option value="event">Event</option>
-                    <!-- Tambahkan opsi lainnya sesuai kebutuhan -->
-                </select>
-            </div>
-            <button type="submit" class="btn btn-success">Tambah Gambar</button>
-            <button type="button" onclick="toggleDarkMode()" class="btn btn-dark ml-2">Toggle Dark Mode</button>
-        </form>
+        <!-- Pagination -->
+        <nav aria-label="Page navigation">
+            <ul class="pagination">
+                <li class="page-item">
+                    <a class="page-link" href="#" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                <li class="page-item">
+                    <a class="page-link" href="#" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
-        // Mengaktifkan dark mode berdasarkan localStorage
-        document.addEventListener("DOMContentLoaded", () => {
-            if (localStorage.getItem("dark-mode") === "enabled") {
-                document.body.classList.add("dark-mode");
-            }
-        });
-
-        // Fungsi toggle untuk dark mode
-        function toggleDarkMode() {
-            document.body.classList.toggle("dark-mode");
-            localStorage.setItem("dark-mode", document.body.classList.contains("dark-mode") ? "enabled" : "disabled");
-        }
-    </script>
 </body>
 </html>
+
+<?php
+// Menutup koneksi
+$conn->close();
+?>

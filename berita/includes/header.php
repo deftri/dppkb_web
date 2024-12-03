@@ -1,15 +1,13 @@
 <?php
 // includes/header.php
 
-// Pastikan session telah dimulai di setiap halaman sebelum menyertakan header
+// Pastikan session telah dimulai
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
 // Tentukan halaman aktif jika belum ditentukan
-if (!isset($halaman)) {
-    $halaman = '';
-}
+$halaman = $halaman ?? ''; // PHP 7+ shorthand for checking if variable is set
 
 // Set judul halaman
 $page_title = ucfirst(str_replace(['.php', 'index'], '', basename($_SERVER['PHP_SELF'], ".php"))) . " | DPPKB Kabupaten Muara Enim";
@@ -18,128 +16,117 @@ $page_title = ucfirst(str_replace(['.php', 'index'], '', basename($_SERVER['PHP_
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title><?php echo htmlspecialchars($page_title); ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="Website resmi Dinas Pengendalian Penduduk dan Keluarga Berencana Kabupaten Muara Enim. Menyajikan informasi terkini dan relevan.">
     <meta name="keywords" content="Dinas Pengendalian Penduduk, Keluarga Berencana, Kabupaten Muara Enim, Berita, Galeri">
     <meta name="author" content="Dinas Pengendalian Penduduk dan Keluarga Berencana Kabupaten Muara Enim">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title><?php echo htmlspecialchars($page_title); ?></title>
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Font Awesome untuk ikon -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css">
-    <!-- CSS Kustom -->
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Custom Styles -->
     <link rel="stylesheet" href="css/header.css">
-    <!-- Favicon (Opsional) -->
-    <link rel="icon" href="assets/img/favicon.ico" type="image/x-icon">
+    
+    <!-- Add custom CSS for running text -->
+    <style>
+    /* Animasi Running Text */
+    .running-text {
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        box-sizing: border-box;
+        position: relative;
+        background-color: #007bff;
+        color: white;
+        padding: 15px 0;
+    }
+
+    .running-text p {
+        display: inline-block;
+        padding-left: 100%;
+        animation: slide 40s linear infinite; /* Mengubah durasi menjadi 30 detik */
+    }
+
+    /* Animasi untuk teks bergerak */
+    @keyframes slide {
+        0% {
+            transform: translateX(100%);
+        }
+        100% {
+            transform: translateX(-100%);
+        }
+    }
+</style>
+
 </head>
 <body>
-    <!-- Running Text dan Jam -->
-    <div class="news-ticker bg-light text-dark py-2">
-    <div class="container d-flex justify-content-between align-items-center">
-    <div class="news-ticker bg-light text-dark py-2">
-    <div class="container d-flex justify-content-between align-items-center">
-        <div class="ticker-wrap">
-            <p class="ticker-text mb-0">
-                Selamat datang di website resmi Dinas Pengendalian Penduduk dan Keluarga Berencana Kabupaten Muara Enim! Dapatkan informasi terkini dan terpercaya setiap hari.
-            </p>
-        </div>
-        <div class="clock" id="clock"></div>
-    </div>
-</div>
-    </div>
-</div>
-
-
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light sticky-top">
-    <div class="container">
-        <a class="navbar-brand" href="index.php">
-        <img src="../assets/img/logodinas1.png" alt="Logo Dinas" height="60">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm sticky-top">
+        <div class="container-fluid">
+            <!-- Logo atau Brand -->
+            <a class="navbar-brand d-flex align-items-center" href="index.php">
+                <img src="../assets/img/logodinas1.png" alt="Logo" style="width: 50px; height: auto;">
+                <span class="ms-2">DPPKB Kabupaten Muara Enim</span>
+            </a>
 
-        </a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavDropdown" 
-                aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        
-        <!-- Menu Navigasi -->
-        <div class="collapse navbar-collapse" id="navbarNavDropdown">
-            <ul class="navbar-nav ml-auto">
-                <!-- Menu Navigasi -->
-                <li class="nav-item <?php echo ($halaman == 'index.php') ? 'active' : ''; ?>">
-                    <a class="nav-link" href="index.php"><i class="fas fa-home"></i> Beranda</a>
-                </li>
-                <li class="nav-item <?php echo ($halaman == 'tentang.php') ? 'active' : ''; ?>">
-                    <a class="nav-link" href="tentang.php"><i class="fas fa-info-circle"></i> Tentang</a>
-                </li>
-                <li class="nav-item <?php echo ($halaman == 'renja.php') ? 'active' : ''; ?>">
-                    <a class="nav-link" href="renja.php"><i class="fas fa-chart-line"></i> Renja</a>
-                </li>
-                <li class="nav-item <?php echo ($halaman == 'galeri.php') ? 'active' : ''; ?>">
-                    <a class="nav-link" href="galeri.php"><i class="fas fa-images"></i> Galeri</a>
-                </li>
-                <li class="nav-item <?php echo ($halaman == 'berita.php') ? 'active' : ''; ?>">
-                    <a class="nav-link" href="berita.php"><i class="fas fa-newspaper"></i> Berita</a>
-                </li>
+            <!-- Tombol Toggle (untuk menu responsif) -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-                <!-- Menu Sinderela yang Mencolok -->
-                <li class="nav-item <?php echo ($halaman == 'sinderela.menu.php') ? 'active' : ''; ?>">
-    <a class="nav-link sinderela-menu" href="../public/sinderela.menu.php">
-        <i class="fas fa-file-alt"></i> SINDERELA
-    </a>
-</li>
-
-
-
-                <li class="nav-item <?php echo ($halaman == 'kontak.php') ? 'active' : ''; ?>">
-                    <a class="nav-link" href="kontak.php"><i class="fas fa-envelope"></i> Kontak</a>
-                </li>
-
-                <!-- Login/logout -->
-                <?php if (isset($_SESSION['user_id'])): ?>
+            <!-- Menu Navigasi -->
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="dashboard.php"><i class="fas fa-user"></i> Dashboard</a>
+                        <a class="nav-link <?php echo ($halaman == 'home' ? 'active' : ''); ?>" href="index.php">Beranda</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                        <a class="nav-link <?php echo ($halaman == 'tentang' ? 'active' : ''); ?>" href="tentang.php">Tentang Kami</a>
                     </li>
-                <?php else: ?>
-                    <li class="nav-item <?php echo ($halaman == 'login.php') ? 'active' : ''; ?>">
-                        <a class="nav-link" href="login.php"><i class="fas fa-sign-in-alt"></i> Login</a>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo ($halaman == 'renja' ? 'active' : ''); ?>" href="renja.php">Renja</a>
                     </li>
-                <?php endif; ?>
-            </ul>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo ($halaman == 'program' ? 'active' : ''); ?>" href="program.php">Program</a>
+                    </li>
+                    <li class="nav-item layanan">
+                        <a class="nav-link <?php echo ($halaman == 'layanan' ? 'active' : ''); ?>" href="../public/sinderela.menu.php">SINDERELA</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo ($halaman == 'galeri' ? 'active' : ''); ?>" href="galeri.php">Galeri</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo ($halaman == 'kontak' ? 'active' : ''); ?>" href="kontak.php">Kontak</a>
+                    </li>
+                    <!-- Login / Logout -->
+                    <?php if (isset($_SESSION['user'])): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="logout.php">Logout</a>
+                        </li>
+                    <?php else: ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="login.php">Login</a>
+                        </li>
+                    <?php endif; ?>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
+    <!-- Running Text Section -->
+    <section class="running-text">
+        <div class="container">
+            <p>Selamat datang di Dinas Pengendalian Penduduk dan Keluarga Berencana Kabupaten Muara Enim. Kami berkomitmen untuk meningkatkan kesejahteraan keluarga dan pengendalian penduduk yang berkelanjutan. Dapatkan informasi terbaru melalui layanan kami!</p>
+        </div>
+    </section>
 
-    <!-- Akhir Navbar -->
-
-    <!-- Separator Navbar -->
-    <div class="navbar-separator"></div>
-
-    <!-- Nama Dinas Section -->
-    <div class="nama-dinas text-center my-4">
-        <h3 class="text-uppercase">Dinas Pengendalian Penduduk dan Keluarga Berencana</h3>
-        <h4 class="text-uppercase">Kabupaten Muara Enim</h4>
-    </div>
-
-    <!-- Tambahkan Jam Digital -->
-    <script>
-        function updateClock() {
-            const clockElement = document.getElementById('clock');
-            const now = new Date();
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
-            clockElement.textContent = `${hours}:${minutes}:${seconds}`;
-        }
-
-        setInterval(updateClock, 1000);
-        updateClock(); // Initial call
-    </script>
-
-    <!-- Dark Mode Script -->
+    <!-- Tambahkan script Bootstrap 5 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

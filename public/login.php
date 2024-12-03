@@ -83,7 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -194,6 +193,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-decoration: underline;
         }
 
+        /* Mata icon untuk melihat password */
+        .eye-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 18px;
+            color: #aaa;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
         /* Responsive adjustments untuk tablet dan mobile */
         @media (max-width: 768px) {
             .login-container {
@@ -252,15 +266,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
         <form method="post" action="">
             <input type="text" class="input-field" id="username" name="username" placeholder="Username" required>
-            <input type="password" class="input-field" id="password" name="password" placeholder="Password" required>
+            
+            <div class="input-wrapper">
+                <input type="password" class="input-field" id="password" name="password" placeholder="Password" required>
+                <span class="eye-icon" id="togglePassword">&#128065;</span> <!-- Mata icon -->
+            </div>
+            
             <button type="submit" class="button">Login</button>
         </form>
         <a href="register.php" class="forgot-password">Belum punya akun? Klik untuk mendaftar</a>
 
         <!-- Button to go back to berita index -->
-        <!-- Form untuk Kembali ke Dashboard -->
-<!-- Form untuk Kembali ke Dashboard -->
-<a href="../berita/index.php" class="button">Kembali ke Dashboard</a>
+        <a href="../berita/index.php" class="button">Kembali ke Dashboard</a>
     </div>
+
+    <script>
+        // Toggle password visibility
+        const togglePassword = document.getElementById("togglePassword");
+        const passwordField = document.getElementById("password");
+
+        togglePassword.addEventListener("click", function () {
+            // Toggle the type attribute using ternary operator
+            const type = passwordField.type === "password" ? "text" : "password";
+            passwordField.type = type;
+            // Toggle the eye icon
+            this.textContent = type === "password" ? "👁️" : "🙈"; 
+        });
+    </script>
 </body>
 </html>
+

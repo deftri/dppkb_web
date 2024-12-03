@@ -1,15 +1,15 @@
 <?php
-// Aktifkan error reporting untuk debugging jika di lingkungan pengembangan
-if ($_SERVER['ENV'] == 'development') {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-} else {
-    error_reporting(0);
-    ini_set('display_errors', 0);
-}
-
-session_start();
+// Aktifkan error reporting untuk debugging
 include("../config/config.php"); // Pastikan path ke config sudah benar
+
+session_start();  // Memastikan sesi dimulai
+
+// Pastikan hanya admin yang bisa mengakses halaman ini
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    $_SESSION['error'] = "Anda tidak memiliki izin untuk mengakses halaman ini.";
+    header("Location: login.php");  // Redirect ke login jika bukan admin
+    exit();
+}
 
 // Membuat token CSRF jika belum ada
 if (!isset($_SESSION['csrf_token'])) {
@@ -27,43 +27,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Permintaan tidak valid.";
     } else {
         // Mengambil dan menyaring data input
-        $username = trim($_POST['username']);
-        $password = trim($_POST['password']);
+        $judul = mysqli_real_escape_string($conn, $_POST['judul']);
+        $konten = mysqli_real_escape_string($conn, $_POST['konten']);
+        $kategori = mysqli_real_escape_string($conn, $_POST['kategori']);
+        $jenis = mysqli_real_escape_string($conn, $_POST['jenis']);
 
         // Validasi input
-        if (empty($username) || empty($password)) {
+        if (empty($judul) || empty($konten) || empty($kategori) || empty($jenis)) {
             $error = "Silakan isi semua field.";
         } else {
-            // Menggunakan prepared statements untuk mencegah SQL Injection
-            $stmt = $conn->prepare("SELECT * FROM admin WHERE username = ?");
-            if ($stmt) {
-                $stmt->bind_param("s", $username);
-                $stmt->execute();
-                $result = $stmt->get_result();
+            // Proses upload gambar jika ada
+            $gambar = null;
+            $target_file = null;
+            if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                $target_file = 'uploads/' . basename($_FILES['gambar']['name']);
 
-                if ($result && $result->num_rows > 0) {
-                    $admin = $result->fetch_assoc();
-                    // Memeriksa password menggunakan password_verify
-                    if (password_verify($password, $admin['password_hash'])) {
-                        // Mengatur session
-                        $_SESSION['admin'] = $admin['username'];
-                        $_SESSION['role'] = 'admin'; // Tambahkan ini
-                        // Regenerate session ID untuk mencegah session fixation
-                        session_regenerate_id(true);
-                        header("Location: admin_dashboard.php");
-                        exit();
+                // Validasi tipe dan ukuran file
+                if (in_array($_FILES['gambar']['type'], $allowed_types) && $_FILES['gambar']['size'] < 2 * 1024 * 1024) {
+                    // Memindahkan file gambar ke folder upload
+                    if (move_uploaded_file($_FILES['gambar']['tmp_name'], $target_file)) {
+                        $gambar = $target_file;
                     } else {
-                        $error = "Username atau password salah.";
+                        $error = "Gagal mengunggah gambar.";
                     }
                 } else {
-                    $error = "Username atau password salah.";
+                    $error = "Format gambar tidak valid atau ukuran terlalu besar.";
                 }
+            }
 
-                $stmt->close();
-            } else {
-                // Jika prepared statement gagal
-                $error = "Terjadi kesalahan pada server. Silakan coba lagi nanti.";
-                error_log("Prepare failed: (" . $conn->errno . ") " . $conn->error);
+            // Menyimpan berita ke database
+            if (empty($error)) {
+                $tanggal_publikasi = date("Y-m-d H:i:s");  // Menentukan tanggal publikasi
+                $view_count = 0;  // Set default view_count
+                $kunjungan = 0;   // Set default kunjungan
+
+                // Menyiapkan query untuk memasukkan data berita ke database
+                $sql = "INSERT INTO berita (judul, konten, tanggal_publikasi, gambar, kategori, view_count, kunjungan, jenis)
+                        VALUES ('$judul', '$konten', '$tanggal_publikasi', '$gambar', '$kategori', $view_count, $kunjungan, '$jenis')";
+
+                if ($conn->query($sql) === TRUE) {
+                    $message = "Berita berhasil ditambahkan!";
+                } else {
+                    $error = "Error: " . $conn->error;
+                }
             }
         }
     }
@@ -75,102 +82,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Admin</title>
-    <!-- Bootstrap CSS -->
+    <title>Tambah Berita</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .login-container {
-            background-color: #ffffff;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            max-width: 400px;
-            width: 100%;
-        }
-        .login-container h2 {
-            margin-bottom: 30px;
-            color: #4e5d6c; /* Warna biru pastel yang lembut */
-            font-weight: 600;
-        }
-        .btn-primary {
-            background-color: #4e5d6c;
-            border-color: #4e5d6c;
-        }
-        .btn-primary:hover {
-            background-color: #3b4753;
-            border-color: #2f3a44;
-        }
-        .alert {
-            margin-top: 20px;
-        }
-        .form-label {
-            font-weight: 600;
-            color: #4e5d6c;
-        }
-        footer {
-            text-align: center;
-            margin-top: 30px;
-        }
-        footer a {
-            color: #007bff;
-            text-decoration: none;
-        }
-        footer a:hover {
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
+    <div class="container mt-5">
+        <h2>Tambah Berita</h2>
 
-<div class="login-container">
-    <h2 class="text-center">Login Admin</h2>
+        <!-- Tampilkan pesan sukses atau error -->
+        <?php if ($message): ?>
+            <div class="alert alert-success"><?= $message; ?></div>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="alert alert-danger"><?= $error; ?></div>
+        <?php endif; ?>
 
-    <!-- Menampilkan pesan sukses atau error -->
-    <?php if (!empty($message)): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
-    <?php endif; ?>
+        <form action="tambah_berita.php" method="POST" enctype="multipart/form-data">
+            <!-- CSRF Token -->
+            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token']; ?>">
 
-    <?php if (!empty($error)): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
-    <?php endif; ?>
+            <!-- Judul Berita -->
+            <div class="mb-3">
+                <label for="judul" class="form-label">Judul Berita</label>
+                <input type="text" class="form-control" id="judul" name="judul" required>
+            </div>
 
-    <form method="POST" action="">
-        <!-- Token CSRF -->
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        
-        <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
-            <input type="text" name="username" id="username" class="form-control" required value="<?php echo isset($username) ? htmlspecialchars($username) : ''; ?>">
-        </div>
-        <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" name="password" id="password" class="form-control" required>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Login</button>
-    </form>
+            <!-- Konten Berita -->
+            <div class="mb-3">
+                <label for="konten" class="form-label">Konten Berita</label>
+                <textarea class="form-control" id="konten" name="konten" rows="4" required></textarea>
+            </div>
 
-    <footer>
-        <p>Belum punya akun? <a href="registrasi.php">Daftar di sini</a></p>
-        <a href="privacy_policy.php">Privacy Policy</a> | 
-        <a href="terms_of_service.php">Terms of Service</a>
-    </footer>
-</div>
+            <!-- Kategori -->
+            <div class="mb-3">
+                <label for="kategori" class="form-label">Kategori</label>
+                <select class="form-select" id="kategori" name="kategori" required>
+                    <option value="SEKRETARIAT">SEKRETARIAT</option>
+                    <option value="KB">KB</option>
+                    <option value="ADVIN">ADVIN</option>
+                    <option value="KS">KS</option>
+                </select>
+            </div>
 
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            <!-- Jenis -->
+            <div class="mb-3">
+                <label for="jenis" class="form-label">Jenis</label>
+                <input type="text" class="form-control" id="jenis" name="jenis" required>
+            </div>
 
+            <!-- Gambar -->
+            <div class="mb-3">
+                <label for="gambar" class="form-label">Upload Gambar</label>
+                <input type="file" class="form-control" id="gambar" name="gambar">
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary">Tambahkan Berita</button>
+        </form>
+    </div>
 </body>
 </html>
-
-<?php
-// Menutup koneksi database
-$conn->close();
-?>

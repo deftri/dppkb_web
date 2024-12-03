@@ -8,11 +8,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// Ambil session_id dari URL
+// Ambil session_id dari URL dan pastikan itu adalah integer positif
 $session_id = isset($_GET['session_id']) ? filter_var($_GET['session_id'], FILTER_SANITIZE_NUMBER_INT) : null;
 $messages = [];
 
-if ($session_id) {
+if ($session_id && $session_id > 0) {
     // Ambil data percakapan berdasarkan session_id
     $sql_messages = "
         SELECT m.message, m.sent_at, u.nama AS sender_nama, u.role AS sender_role
@@ -21,11 +21,16 @@ if ($session_id) {
         WHERE m.session_id = ?
         ORDER BY m.sent_at ASC
     ";
+    
+    // Menyiapkan statement untuk menghindari SQL Injection
     $stmt_messages = $conn->prepare($sql_messages);
     $stmt_messages->bind_param("i", $session_id);
     $stmt_messages->execute();
+    
+    // Mengambil hasil query
     $messages_result = $stmt_messages->get_result();
     
+    // Menyusun array pesan
     while ($row = $messages_result->fetch_assoc()) {
         // Pastikan setiap nilai tidak null dengan menggunakan null coalescing operator (??)
         $messages[] = [
@@ -35,6 +40,10 @@ if ($session_id) {
             'sender_role' => $row['sender_role'] ?? 'Role tidak diketahui'
         ];
     }
+} else {
+    // Menangani jika session_id tidak valid
+    echo "Session ID tidak valid.";
+    exit();
 }
 ?>
 

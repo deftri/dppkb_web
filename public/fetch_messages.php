@@ -34,25 +34,19 @@ function addSystemMessage($conn, $session_id, $message) {
     }
 }
 
-// Tampilkan pesan selamat datang jika belum ditampilkan
-if (empty($_SESSION['chat'][$session_id]['welcome_shown'])) {
-    $welcome_message = "Selamat datang di layanan konseling SINDERELA. Kami hadir untuk membantu Anda.";
-    addSystemMessage($conn, $session_id, $welcome_message);
-    $_SESSION['chat'][$session_id]['welcome_shown'] = true;
+// ** Kirim pesan pertama kali saat konselor atau klien masuk **
+if ($user_role === 'klien' && empty($_SESSION['chat'][$session_id]['klien_joined'])) {
+    // Pesan saat klien pertama kali masuk
+    $join_message = "Klien telah masuk ke room chat. Silakan mulai percakapan.";
+    addSystemMessage($conn, $session_id, $join_message);
+    $_SESSION['chat'][$session_id]['klien_joined'] = true; // Tandai klien sudah masuk
 }
 
-// Tampilkan pesan jika konselor baru saja bergabung
 if ($user_role === 'konselor' && empty($_SESSION['chat'][$session_id]['konselor_joined'])) {
+    // Pesan saat konselor pertama kali masuk
     $join_message = "Konselor telah masuk ke room chat. Silakan mulai percakapan.";
     addSystemMessage($conn, $session_id, $join_message);
-    $_SESSION['chat'][$session_id]['konselor_joined'] = true;
-}
-
-// Tampilkan pesan jika klien baru saja bergabung
-if ($user_role === 'klien' && empty($_SESSION['chat'][$session_id]['klien_joined'])) {
-    $join_message = "Klien telah masuk ke room chat.";
-    addSystemMessage($conn, $session_id, $join_message);
-    $_SESSION['chat'][$session_id]['klien_joined'] = true;
+    $_SESSION['chat'][$session_id]['konselor_joined'] = true; // Tandai konselor sudah masuk
 }
 
 // Ambil pesan terbaru sejak waktu tertentu

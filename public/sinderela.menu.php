@@ -248,16 +248,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php 
                     switch ($_SESSION['role']) {
                         case 'klien':
-                            echo '../klien/dashboard-klien.php';
+                            echo '../berita/index.php';
                             break;
                         case 'konselor':
-                            echo '../konselor/dashboard-konselor.php';
+                            echo '../berita/index.php';
                             break;
                         case 'psikolog':
-                            echo '../psikolog/dashboard-psikolog.php';
+                            echo '../berita/index.php';
                             break;
                         case 'admin':
-                            echo '../admin/dashboard-admin.php';
+                            echo '../berita/index.php';
                             break;
                         default:
                             echo '#';

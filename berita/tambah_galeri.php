@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         // Proses upload gambar
         $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-        $max_size = 2 * 1024 * 1024; // 2MB
+        $max_size = 10 * 1024 * 1024; // 2MB
 
         $file_tmp = $_FILES['gambar']['tmp_name'];
         $file_name = basename($_FILES['gambar']['name']);
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!in_array($file_type, $allowed_types)) {
             $error = "Tipe file tidak diperbolehkan. Hanya JPG, PNG, dan GIF yang diperbolehkan.";
         } elseif ($file_size > $max_size) {
-            $error = "Ukuran file terlalu besar. Maksimal 2MB.";
+            $error = "Ukuran file terlalu besar. Maksimal 10 MB.";
         } else {
             // Tentukan direktori upload
             $upload_dir = '../uploads/galeri/'; // Pastikan direktori ini ada dan writable
@@ -155,9 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <label for="jenis">Jenis:</label>
                 <select name="jenis" id="jenis" class="form-control" required>
                     <option value="">-- Pilih Jenis --</option>
-                    <option value="cover">Cover</option>
-                    <option value="logo">Logo</option>
-                    <option value="event">Event</option>
+                    <option value="cover">SAMPUL</option>
+                    <option value="logo">LOGO</option>
+                    <option value="event">KEGIATAN</option>
                     <!-- Tambahkan opsi lainnya sesuai kebutuhan -->
                 </select>
             </div>

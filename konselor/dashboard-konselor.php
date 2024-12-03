@@ -14,7 +14,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'konselor') {
 $konselor_id = $_SESSION['user_id'];
 
 // Fetch counselor’s name and area
-$sql_user = "SELECT username, id_wilayah, sub_role FROM users WHERE id = ?";
+$sql_user = "SELECT username, id_wilayah, sub_role, nama FROM users WHERE id = ?";
+
 $stmt_user = $conn->prepare($sql_user);
 $stmt_user->bind_param("i", $konselor_id);
 $stmt_user->execute();
@@ -26,50 +27,38 @@ if (!$user_data) {
 }
 
 $username = htmlspecialchars($user_data['username']);
+$nama_konselor = htmlspecialchars($user_data['nama']);
+
 $id_wilayah = $user_data['id_wilayah'];
 $sub_role = $user_data['sub_role']; // Ambil sub_role konselor
 
-// Fetch list of online clients in the same area who do not have a session with refer=1
-$sql_klien = "SELECT u.id, u.username 
-              FROM users u 
-              LEFT JOIN chat_sessions cs ON u.id = cs.klien_id AND cs.refer = 1
-              WHERE u.role = 'klien' 
-                AND u.is_online = 1 
-                AND u.id_wilayah = ? 
-                AND (u.sub_role = ? OR u.sub_role IS NULL) 
-                AND cs.id IS NULL";
 
-$stmt_klien = $conn->prepare($sql_klien);
-$stmt_klien->bind_param("is", $id_wilayah, $sub_role);
-$stmt_klien->execute();
-$result_klien = $stmt_klien->get_result();
+// Fetch list of online psychologists
+$sql_online_psychologists = "SELECT id, username FROM users WHERE role = 'psikolog' AND is_online = 1";
+$stmt_online_psychologists = $conn->prepare($sql_online_psychologists);
+$stmt_online_psychologists->execute();
+$result_online_psychologists = $stmt_online_psychologists->get_result();
+$online_psychologists = [];
 
-if ($result_klien->num_rows === 0) {
-   // echo "Tidak ada klien online ditemukan.";
-    error_log("Tidak ada klien online di wilayah $id_wilayah dan sub_role $sub_role.");
+while ($row = $result_online_psychologists->fetch_assoc()) {
+    $online_psychologists[] = $row; // Menyimpan id dan username psikolog
 }
 
-
 // Fetch active sessions
+// Query untuk mengambil sesi aktif yang belum dirujuk
 $sql_sesi_berlangsung = "SELECT cs.* 
                          FROM chat_sessions cs 
                          JOIN users u ON cs.klien_id = u.id 
                          WHERE cs.konselor_id = ? 
                            AND cs.status IN ('menunggu', 'berlangsung') 
+                           AND cs.refer = 0
                            AND (u.sub_role = ? OR u.sub_role IS NULL)";
-
-
 $stmt_sesi_berlangsung = $conn->prepare($sql_sesi_berlangsung);
 $stmt_sesi_berlangsung->bind_param("is", $konselor_id, $sub_role);
 $stmt_sesi_berlangsung->execute();
 $sesi_berlangsung_result = $stmt_sesi_berlangsung->get_result();
 
-if ($result_klien->num_rows === 0) {
-   // echo "Tidak ada klien online ditemukan.";
-    error_log("Tidak ada klien online di wilayah $id_wilayah dan sub_role $sub_role.");
-}
 
-// Debugging jika tidak ada sesi ditemukan
 if ($sesi_berlangsung_result->num_rows === 0) {
     error_log("Tidak ada sesi aktif atau menunggu untuk konselor $konselor_id dengan sub_role $sub_role.");
 }
@@ -86,20 +75,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refer_session_id'])) 
     // Daftar psikolog yang tersedia (urutkan sesuai prioritas)
     $psychologist_ids = [100, 101, 102, 103];
     $placeholders = implode(',', array_fill(0, count($psychologist_ids), '?'));
-$sql_check_busy = "
-    SELECT psikolog_id, COUNT(*) AS active_sessions 
-    FROM chat_sessions 
-    WHERE psikolog_id IN ($placeholders) AND status IN ('menunggu', 'berlangsung')
-    GROUP BY psikolog_id
-";
-$stmt_check = $conn->prepare($sql_check_busy);
-if (!$stmt_check) {
-    die("Kesalahan query: " . $conn->error);
-}
-$stmt_check->bind_param(str_repeat('i', count($psychologist_ids)), ...$psychologist_ids);
-$stmt_check->execute();
 
+    // Check if any of the available psychologists are not busy
+    // Pastikan Anda mengambil id psikolog yang online dengan benar.
+    $sql_check_busy = "
+        SELECT psikolog_id, COUNT(*) AS active_sessions 
+        FROM chat_sessions 
+        WHERE psikolog_id IN (" . implode(',', array_map('intval', $online_psychologists)) . ") 
+        AND status IN ('menunggu', 'berlangsung')
+        GROUP BY psikolog_id
+    ";
+    $stmt_check = $conn->prepare($sql_check_busy);
+    $stmt_check->execute();
     $result_check = $stmt_check->get_result();
+
 
     $busy_psychologists = [];
     while ($row = $result_check->fetch_assoc()) {
@@ -108,36 +97,37 @@ $stmt_check->execute();
         }
     }
 
-    // Temukan psikolog yang tidak sibuk
+    // Find an available psychologist
     $available_psychologist = null;
-    foreach ($psychologist_ids as $psychologist_id) {
-        if (!in_array($psychologist_id, $busy_psychologists)) {
-            $available_psychologist = $psychologist_id;
+    foreach ($online_psychologists as $psychologist) {
+        if (!in_array($psychologist['id'], $busy_psychologists)) {
+            $available_psychologist = $psychologist['id'];
             break;
         }
     }
 
-    // Jika ditemukan psikolog yang tersedia, lakukan update
-    if ($available_psychologist) {
-        $sql_refer_session = "UPDATE chat_sessions SET status = 'berlangsung', refer = 1, psikolog_id = ? WHERE id = ? AND konselor_id = ?";
-        $stmt_refer_session = $conn->prepare($sql_refer_session);
-        $stmt_refer_session->bind_param("iii", $available_psychologist, $refer_session_id, $konselor_id);
-        $stmt_refer_session->execute();
+    if (!$available_psychologist) {
+        error_log("Semua psikolog online sedang sibuk.");
+        echo "<script>showBubble('Semua psikolog online sedang sibuk. Silakan coba lagi nanti.', 'error');</script>";
+        exit();
+    }
 
-        if ($stmt_refer_session->affected_rows > 0) {
-            echo "<script>showBubble('Sesi berhasil dirujuk ke psikolog ID $available_psychologist.', 'success');</script>";
-        } else {
-            error_log("Gagal merujuk sesi ID $refer_session_id ke psikolog ID $available_psychologist.");
-            echo "<script>showBubble('Gagal merujuk sesi. Silakan coba lagi.', 'error');</script>";
-        }
+    // Jika ditemukan psikolog yang tersedia, lakukan update
+    // Update session to refer to the available psychologist
+    $sql_refer_session = "UPDATE chat_sessions SET status = 'berlangsung', refer = 1, psikolog_id = ? WHERE id = ? AND konselor_id = ?";
+    $stmt_refer_session = $conn->prepare($sql_refer_session);
+    $stmt_refer_session->bind_param("iii", $available_psychologist, $refer_session_id, $konselor_id);
+    $stmt_refer_session->execute();
+
+    if ($stmt_refer_session->affected_rows > 0) {
+        echo "<script>showBubble('Sesi berhasil dirujuk ke psikolog ID $available_psychologist.', 'success');</script>";
     } else {
-        error_log("Semua psikolog sedang sibuk. Sesi ID $refer_session_id tidak dapat dirujuk.");
-        echo "<script>showBubble('Semua psikolog sedang sibuk. Silakan coba lagi nanti.', 'error');</script>";
+        error_log("Gagal merujuk sesi ID $refer_session_id ke psikolog ID $available_psychologist.");
+        echo "<script>showBubble('Gagal merujuk sesi. Silakan coba lagi.', 'error');</script>";
     }
 }
-
-
 ?>
+
 
 <!DOCTYPE html>
 <html lang="id">
@@ -555,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="content-area">
             <!-- User Information -->
             <div class="user-info">
-                Selamat Datang, <?= $username ?>
+                <h1>Selamat datang, <?php echo $nama_konselor; ?>!</h1>
             </div>
 
             <!-- Online Clients List -->
@@ -623,109 +613,120 @@ if ($result_psikolog && $result_psikolog->num_rows > 0): ?>
 </div>
 
 
-            <!-- Active Sessions -->
-            <div class="column">
-                <h2>Sesi Aktif</h2>
-                <?php if ($sesi_berlangsung_result->num_rows > 0): ?>
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>ID Sesi</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                    <th>Rujukan</th>
-                                    <th>Riwayat Chat</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($session = $sesi_berlangsung_result->fetch_assoc()): ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($session['id']) ?></td>
-                                        <td><?= htmlspecialchars($session['status']) ?></td>
-                                        <td>
-                                            <?php if ($session['status'] == 'berlangsung' && $session['refer'] == 1): ?>
-                                                <span class="text-muted">Tidak dapat dilanjutkan</span>
-                                            <?php else: ?>
-                                                <a href="../public/chat_room.php?session_id=<?= htmlspecialchars($session['id']) ?>" class="start-session btn btn-success btn-sm">
-                                                    <i class="fas fa-comments me-1"></i> Lanjutkan
-                                                </a>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                        <?php if ($session['refer'] == 0): ?>
-                                            <form method="POST" style="display: inline;">
-                                                <input type="hidden" name="refer_session_id" value="<?= htmlspecialchars($session['id']) ?>">
-                                                <button type="submit" class="refer-button btn btn-info btn-sm">
-                                                    <i class="fas fa-share-alt me-1"></i> Rujuk Psikolog
-                                                </button>
-                                            </form>
-                                        <?php else: ?>
-                                            <span class="text-success">Sudah dirujuk</span>
-                                        <?php endif; ?>
+          <!-- Active Sessions -->
+          <div class="column">
+    <h2>Sesi Aktif</h2>
+    <?php if ($sesi_berlangsung_result->num_rows > 0): ?>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID Sesi</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                        <th>Rujukan</th>
+                        <th>Riwayat Chat</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($session = $sesi_berlangsung_result->fetch_assoc()): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($session['id']) ?></td>
+                            <td><?= htmlspecialchars($session['status']) ?></td>
+                            <td>
+                                <?php if ($session['status'] == 'berlangsung' && $session['refer'] == 1): ?>
+                                    <span class="text-muted">Tidak dapat dilanjutkan</span>
+                                <?php else: ?>
+                                    <a href="../public/chat_room.php?session_id=<?= htmlspecialchars($session['id']) ?>" class="start-session btn btn-success btn-sm">
+                                        <i class="fas fa-comments me-1"></i> Lanjutkan
+                                    </a>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($session['refer'] == 0 && !empty($online_psychologists)): ?>
+                                    <form method="POST" style="display: inline;">
+                                        <input type="hidden" name="refer_session_id" value="<?= htmlspecialchars($session['id']) ?>">
 
-                                        </td>
-                                        <td>
-                                            <a href="generate_chat_pdf.php?session_id=<?= htmlspecialchars($session['id']) ?>" class="download-chat btn btn-primary btn-sm" target="_blank">
-                                                <i class="fas fa-download me-1"></i> Download
-                                            </a>
-                                            <a href="javascript:void(0);" onclick="confirmDeleteSession(<?= htmlspecialchars($session['id']) ?>)" class="delete-session btn btn-danger btn-sm">
-                                                <i class="fas fa-times-circle me-1"></i> Hapus
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php else: ?>
-                    <div class="no-data">Tidak ada sesi yang sedang berlangsung atau menunggu.</div>
-                <?php endif; ?>
-            </div>
+                                        <!-- Dropdown untuk memilih psikolog -->
+                                        <select name="psikolog_id" class="form-select form-select-sm" required>
+                                            <option value="" disabled selected>Pilih Psikolog</option>
+                                            <?php foreach ($online_psychologists as $psikolog): ?>
+                                                <option value="<?= htmlspecialchars($psikolog['id']) ?>"><?= htmlspecialchars($psikolog['username']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+
+                                        <!-- Tombol untuk merujuk psikolog -->
+                                        <button type="submit" class="refer-button btn btn-info btn-sm mt-2">
+                                            <i class="fas fa-share-alt me-1"></i> Rujuk Psikolog
+                                        </button>
+                                    </form>
+                                <?php elseif (empty($online_psychologists)): ?>
+                                    <span class="text-muted">Tidak ada psikolog online.</span>
+                                <?php else: ?>
+                                    <span class="text-success">Sudah dirujuk</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a href="generate_chat_pdf.php?session_id=<?= htmlspecialchars($session['id']) ?>" class="download-chat btn btn-primary btn-sm" target="_blank">
+                                    <i class="fas fa-download me-1"></i> Download
+                                </a>
+                                <a href="javascript:void(0);" onclick="confirmDeleteSession(<?= htmlspecialchars($session['id']) ?>)" class="delete-session btn btn-danger btn-sm">
+                                    <i class="fas fa-times-circle me-1"></i> Hapus
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
         </div>
-    </div>
+    <?php else: ?>
+        <div class="no-data">Tidak ada sesi yang sedang berlangsung atau menunggu.</div>
+    <?php endif; ?>
+</div>
 
-    <!-- Bootstrap JS dan Font Awesome -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Fungsi untuk menghapus klien dari daftar online
-        function removeUser(klienId) {
-            if (confirm("Apakah Anda yakin ingin menghapus klien ini dari daftar online?")) {
-                fetch(`remove_user.php`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `klien_id=${klienId}`
-                })
-                .then(response => response.text())
-                .then(data => {
-                    alert(data);
-                    location.reload();
-                })
-                .catch(error => console.error('Error:', error));
-            }
-        }
 
-        // Fungsi untuk menghapus sesi
-        function confirmDeleteSession(sessionId) {
-            if (confirm("Apakah Anda yakin ingin menghapus sesi ini?")) {
-                fetch(`delete_session.php`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `session_id=${sessionId}`
-                })
-                .then(response => response.text())
-                .then(data => {
-                    alert(data);
-                    location.reload();
-                })
-                .catch(error => console.error('Error:', error));
-            }
+<!-- Bootstrap JS dan Font Awesome -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Fungsi untuk menghapus klien dari daftar online
+    function removeUser(klienId) {
+        if (confirm("Apakah Anda yakin ingin menghapus klien ini dari daftar online?")) {
+            fetch(`remove_user.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `klien_id=${klienId}`
+            })
+            .then(response => response.text())
+            .then(data => {
+                alert(data);
+                location.reload();
+            })
+            .catch(error => console.error('Error:', error));
         }
-    </script>
+    }
+
+    // Fungsi untuk menghapus sesi
+    function confirmDeleteSession(sessionId) {
+        if (confirm("Apakah Anda yakin ingin menghapus sesi ini?")) {
+            fetch(`delete_session.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `session_id=${sessionId}`
+            })
+            .then(response => response.text())
+            .then(data => {
+                alert(data);
+                location.reload();
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    }
+</script>
 </body>
 </html>

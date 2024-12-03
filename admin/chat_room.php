@@ -2,315 +2,153 @@
 session_start();
 include '../config/config.php';
 
-// Pastikan pengguna adalah admin
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+// Pastikan pengguna sudah login dan memiliki ID user yang valid
+if (!isset($_SESSION['user_id']) || !isset($_GET['session_id'])) {
     header("Location: ../public/login.php");
     exit();
 }
 
-// Ambil daftar sesi chat yang sudah selesai atau sedang berlangsung
-$sql_sessions = "
-    SELECT 
-        cs.id AS session_id, 
-        cs.klien_id, 
-        cs.konselor_id, 
-        cs.status, 
-        u_klien.nama AS klien_nama, 
-        u_konselor.nama AS konselor_nama,
-        w.nama_wilayah
-    FROM 
-        chat_sessions cs
-    LEFT JOIN 
-        users u_klien ON cs.klien_id = u_klien.id
-    LEFT JOIN 
-        users u_konselor ON cs.konselor_id = u_konselor.id
-    LEFT JOIN 
-        wilayah w ON cs.id_wilayah = w.id
-    ORDER BY 
-        cs.id DESC
-";
-$stmt_sessions = $conn->prepare($sql_sessions);
-$stmt_sessions->execute();
-$sessions_result = $stmt_sessions->get_result();
+// Ambil ID user dan role dari session
+$user_id = $_SESSION['user_id'];
+$session_id = filter_var($_GET['session_id'], FILTER_SANITIZE_NUMBER_INT);
+$role = $_SESSION['role']; // Role pengguna
 
-// Jika admin memilih sesi tertentu, ambil pesan-pesan dalam sesi tersebut
-$selected_session = null;
-$messages = [];
+// Jika bukan admin, tidak bisa mengakses halaman ini
+if ($role !== 'admin') {
+    echo "Anda tidak memiliki izin untuk mengakses halaman ini.";
+    exit();
+}
 
-if (isset($_GET['session_id'])) {
-    $session_id = filter_var($_GET['session_id'], FILTER_SANITIZE_NUMBER_INT);
-    
-    // Verifikasi bahwa sesi tersebut ada
-    $sql_verify = "SELECT * FROM chat_sessions WHERE id = ?";
-    $stmt_verify = $conn->prepare($sql_verify);
-    $stmt_verify->bind_param("i", $session_id);
-    $stmt_verify->execute();
-    $verify_result = $stmt_verify->get_result();
-    
-    if ($verify_result->num_rows > 0) {
-        $selected_session = $verify_result->fetch_assoc();
-        
-        // Ambil pesan-pesan dalam sesi tersebut
-        $sql_messages = "
-            SELECT 
-                m.message, 
-                m.timestamp, 
-                u.nama AS sender_nama, 
-                u.role AS sender_role
-            FROM 
-                chat_messages m
-            LEFT JOIN 
-                users u ON m.sender_id = u.id
-            WHERE 
-                m.session_id = ?
-            ORDER BY 
-                m.timestamp ASC
-        ";
-        $stmt_messages = $conn->prepare($sql_messages);
-        $stmt_messages->bind_param("i", $session_id);
-        $stmt_messages->execute();
-        $messages_result = $stmt_messages->get_result();
-        
-        while ($row = $messages_result->fetch_assoc()) {
-            $messages[] = $row;
-        }
-        
-        // Update status sesi menjadi 'selesai' jika sesi sebelumnya 'berlangsung'
-        if ($selected_session['status'] === 'berlangsung') {
-            $update_status = "UPDATE chat_sessions SET status = 'selesai' WHERE id = ?";
-            $stmt_update = $conn->prepare($update_status);
-            $stmt_update->bind_param("i", $session_id);
-            $stmt_update->execute();
-            $selected_session['status'] = 'selesai';
+
+// Fetch refer status to determine role display (KONSELOR or PSIKOLOG)
+$refer_status = $chat_session['refer'];
+$display_name = '';
+$whatsapp_url = ''; // Initialize WhatsApp URL
+
+// For klien: show KONSELOR or PSIKOLOG based on refer status
+if ($role === 'klien') {
+    if ($refer_status == 0) {
+        $counselor_id = $chat_session['konselor_id'];
+        $sql_counselor = "SELECT username AS counselor_name, nomor_hp FROM users WHERE id = ?";
+        $stmt_counselor = $conn->prepare($sql_counselor);
+        $stmt_counselor->bind_param("i", $counselor_id);
+        $stmt_counselor->execute();
+        $counselor_info = $stmt_counselor->get_result()->fetch_assoc();
+
+        if ($counselor_info) {
+            $display_name = "KONSELOR: " . strtoupper(htmlspecialchars($counselor_info['counselor_name']));
+            $whatsapp_number = preg_replace('/[^0-9]/', '', $counselor_info['nomor_hp']); // Sanitize nomor_hp number
+            $whatsapp_url = "https://wa.me/$whatsapp_number";
+        } else {
+            $display_name = "KONSELOR: Tidak ditemukan.";
         }
     } else {
-        // Jika sesi tidak ditemukan, redirect kembali ke dashboard tanpa session_id
-        header("Location: admin-dashboard.php");
-        exit();
+        $psychologist_id = $chat_session['psikolog_id'];
+        $sql_psychologist = "SELECT username AS psychologist_name FROM users WHERE id = ?";
+        $stmt_psychologist = $conn->prepare($sql_psychologist);
+        $stmt_psychologist->bind_param("i", $psychologist_id);
+        $stmt_psychologist->execute();
+        $psychologist_info = $stmt_psychologist->get_result()->fetch_assoc();
+
+        $display_name = $psychologist_info ? "PSIKOLOG: " . strtoupper(htmlspecialchars($psychologist_info['psychologist_name'])) : "PSIKOLOG: Tidak ditemukan.";
     }
 }
+
+// For konselor or psikolog: show client name and wilayah
+else {
+    $client_id = $chat_session['klien_id'];
+    $sql_client = "SELECT u.username AS client_name, w.nama_wilayah AS wilayah
+                   FROM users u
+                   JOIN wilayah w ON u.id_wilayah = w.id
+                   WHERE u.id = ?";
+    $stmt_client = $conn->prepare($sql_client);
+    $stmt_client->bind_param("i", $client_id);
+    $stmt_client->execute();
+    $client_info = $stmt_client->get_result()->fetch_assoc();
+
+    $display_name = $client_info ? strtoupper(htmlspecialchars($client_info['client_name'])) . " - " . strtoupper(htmlspecialchars($client_info['wilayah'])) : "Klien tidak ditemukan.";
+}
+
+// Fetch usernames for displaying names in each message
+$sql_usernames = "SELECT id, username, role FROM users";
+$usernames_result = $conn->query($sql_usernames);
+$usernames = [];
+while ($row = $usernames_result->fetch_assoc()) {
+    $usernames[$row['id']] = [
+        'name' => strtoupper(htmlspecialchars($row['username'])),
+        'role' => strtoupper(htmlspecialchars($row['role']))
+    ];
+}
+
+// Fetch chat messages for this session
+$sql_messages = "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY sent_at";
+$stmt_messages = $conn->prepare($sql_messages);
+$stmt_messages->bind_param("i", $session_id);
+$stmt_messages->execute();
+$messages = $stmt_messages->get_result();
+
+// Handle session exit and end chat
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['exit_chat'])) {
+    if ($role !== 'konselor' && $role !== 'psikolog') {
+        echo "Anda tidak memiliki izin untuk menyelesaikan sesi ini.";
+        exit();
+    }
+    // Update status chat menjadi selesai
+    $sql_update_status = "UPDATE chat_sessions SET status = 'selesai' WHERE id = ?";
+    $stmt_update = $conn->prepare($sql_update_status);
+    $stmt_update->bind_param("i", $session_id);
+    $stmt_update->execute();
+
+    // Redirect ke dashboard
+    $redirect_path = ($role === 'konselor') ? '../konselor/dashboard-konselor.php' : '../psikolog/dashboard-psikolog.php';
+    header("Location: $redirect_path");
+    exit();
+}
+
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin - Sinderela</title>
-    <!-- Bootstrap CSS -->
+    <title>Chat Room</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome untuk ikon -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        /* Global Styles */
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f7fc;
-        }
-
-        /* Navbar */
-        .navbar-custom {
-            background-color: #007bff;
-            color: white;
-            padding: 15px;
-            font-size: 18px;
-        }
-
-        .navbar-custom a {
-            color: white;
-            text-decoration: none;
-        }
-
-        .navbar-custom a:hover {
-            color: #ffcc00;
-        }
-
-        /* Container for Dashboard */
-        .dashboard-container {
-            max-width: 1200px;
-            margin: 40px auto;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-        }
-
-        /* Styling for List Group */
-        .list-group-item {
-            padding: 15px;
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            transition: background-color 0.3s ease;
-        }
-
-        .list-group-item:hover {
-            background-color: #007bff;
-            color: white;
-        }
-
-        /* Chat Room Styling */
-        .chat-room {
-            background-color: #fff;
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
-            margin-top: 20px;
-        }
-
-        .chat-history {
-            max-height: 500px;
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-        }
-
-        .chat-message {
-            margin-bottom: 20px;
-            display: flex;
-            align-items: flex-start;
-        }
-
-        .chat-message.klien {
-            justify-content: flex-end;
-        }
-
-        .chat-message.konselor {
-            justify-content: flex-start;
-        }
-
-        .chat-bubble {
-            max-width: 70%;
-            padding: 10px;
-            border-radius: 10px;
-            font-size: 14px;
-            position: relative;
-        }
-
-        .chat-bubble.klien {
-            background-color: #e0f7fa;
-            text-align: right;
-        }
-
-        .chat-bubble.konselor {
-            background-color: #ffeb3b;
-            text-align: left;
-        }
-
-        .chat-message small {
-            font-size: 12px;
-            color: #999;
-            display: block;
-            margin-top: 5px;
-        }
-
-        .session-header {
-            font-size: 18px;
-            margin-bottom: 10px;
-            color: #555;
-        }
-
-        .status {
-            margin-top: 20px;
-            font-size: 18px;
-            font-weight: bold;
-            color: green;
-        }
-
-        .back-btn {
-            background-color: #28a745;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            text-decoration: none;
-            display: inline-block;
-            margin-top: 15px;
-        }
-
-        .back-btn:hover {
-            background-color: #218838;
-        }
-
-        /* Scrollbar Styling for Chat History */
-        .chat-history::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .chat-history::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        .chat-history::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 4px;
-        }
-
-        .chat-history::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-    </style>
+    <link rel="stylesheet" href="css/chat_room.css">
 </head>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-custom">
-        <a href="#" class="navbar-brand">Sinderela Admin</a>
-    </nav>
-
-    <!-- Dashboard Container -->
-    <div class="dashboard-container">
-        <h2>Dashboard Admin</h2>
-        
-        <!-- Daftar Sesi Chat -->
-        <div class="mt-4">
-            <h4>Daftar Sesi Chat</h4>
-            <div class="list-group">
-                <?php while ($session = $sessions_result->fetch_assoc()): ?>
-                    <a href="admin-dashboard.php?session_id=<?= htmlspecialchars($session['session_id']) ?>" class="list-group-item">
-                        <strong>Sesi #<?= htmlspecialchars($session['session_id']) ?> - </strong>
-                        Klien: <?= htmlspecialchars($session['klien_nama']) ?>, Konselor: <?= htmlspecialchars($session['konselor_nama']) ?>
-                        <br>
-                        Wilayah: <?= htmlspecialchars($session['nama_wilayah']) ?> | Status: <?= htmlspecialchars($session['status']) ?>
-                    </a>
-                <?php endwhile; ?>
+    <div class="container-chat">
+        <div class="chat-header">
+            <div class="buttons">
+                <button class="btn-dashboard" onclick="window.location.href='<?php echo ($role == 'klien') ? '../klien/dashboard-klien.php' : (($role == 'konselor') ? '../konselor/dashboard-konselor.php' : '../psikolog/dashboard-psikolog.php'); ?>'">
+                    Kembali
+                </button>
             </div>
+            <h1>Chat Room - Sesi #<?= htmlspecialchars($session_id) ?></h1>
+            <span class="user-info"><?= $display_name ?></span>
         </div>
 
-        <!-- Jika session_id dipilih, tampilkan pesan -->
-        <?php if ($selected_session): ?>
-            <div class="chat-room">
-                <h4>Riwayat Chat Room #<?= htmlspecialchars($session_id) ?></h4>
-                <div class="session-header">Percakapan antara Klien dan Konselor/Psikolog</div>
-                <div class="chat-history">
-                    <?php if (!empty($messages)): ?>
-                        <?php foreach ($messages as $message): ?>
-                            <?php
-                                // Tentukan pengirim: klien atau konselor/psikolog
-                                if ($message['sender_role'] === 'klien') {
-                                    $message_class = 'klien';
-                                } else {
-                                    $message_class = 'konselor';
-                                }
-                            ?>
-                            <div class="chat-message <?= $message_class ?>">
-                                <div class="chat-bubble <?= $message_class ?>">
-                                    <strong><?= htmlspecialchars($message['sender_nama']) ?>:</strong>
-                                    <p><?= nl2br(htmlspecialchars($message['message'])) ?></p>
-                                    <small><?= date("d-m-Y H:i", strtotime($message['timestamp'])) ?></small>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <p>Belum ada percakapan dalam sesi ini.</p>
-                    <?php endif; ?>
+        <div id="chat-box">
+            <?php while ($msg = $messages->fetch_assoc()): ?>
+                <?php
+                    $isOutgoing = $msg['sender_id'] == $user_id;
+                    $senderInfo = $usernames[$msg['sender_id']];
+                    $senderDisplay = "{$senderInfo['name']} ({$senderInfo['role']})";
+                ?>
+                <div class="message <?= $isOutgoing ? 'outgoing' : 'incoming' ?>">
+                    <span class="sender"><?= $senderDisplay ?>:</span>
+                    <span><?= htmlspecialchars($msg['message']) ?></span>
+                    <small class="timestamp"><?= htmlspecialchars($msg['sent_at']) ?></small>
                 </div>
-                <a href="admin-dashboard.php" class="back-btn">Kembali ke Daftar Sesi</a>
-            </div>
-        <?php endif; ?>
-    </div>
+            <?php endwhile; ?>
+        </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <div class="message-input-container">
+            <input type="text" class="message-input form-control" id="message" placeholder="Tulis pesan..." required onkeypress="if(event.key === 'Enter'){ sendMessage(); event.preventDefault(); }">
+            <button class="button-send btn btn-primary" onclick="sendMessage()">Kirim</button>
+        </div>
+    </div>
 </body>
 </html>

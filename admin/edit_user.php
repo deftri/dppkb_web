@@ -8,23 +8,24 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// Ambil ID pengguna dari parameter URL
-$user_id = isset($_GET['id']) ? filter_var($_GET['id'], FILTER_SANITIZE_NUMBER_INT) : null;
-
-if (!$user_id) {
+// Pastikan ada ID pengguna yang diberikan di URL
+if (!isset($_GET['id'])) {
     header("Location: admin-dashboard.php");
     exit();
 }
 
-// Ambil data pengguna berdasarkan ID
-$sql_user = "SELECT * FROM users WHERE id = ?";
-$stmt_user = $conn->prepare($sql_user);
-$stmt_user->bind_param("i", $user_id);
-$stmt_user->execute();
-$user_result = $stmt_user->get_result();
+// Ambil ID pengguna dari URL
+$user_id = $_GET['id'];
 
+// Ambil data pengguna dari database
+$sql_get_user = "SELECT * FROM users WHERE id = ?";
+$stmt_get_user = $conn->prepare($sql_get_user);
+$stmt_get_user->bind_param("i", $user_id);
+$stmt_get_user->execute();
+$user_result = $stmt_get_user->get_result();
+
+// Jika pengguna tidak ditemukan
 if ($user_result->num_rows === 0) {
-    // Jika pengguna tidak ditemukan
     header("Location: admin-dashboard.php");
     exit();
 }
@@ -33,45 +34,52 @@ $user = $user_result->fetch_assoc();
 
 // Proses update data pengguna
 $update_error = '';
+$update_success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $new_id = $_POST['id'];
     $username = $_POST['username'];
     $nama = $_POST['nama'];
     $nomor_hp = $_POST['nomor_hp'];
     $email = $_POST['email'];
     $role = $_POST['role'];
-    
-    // Cek apakah password diubah, jika diubah maka hash password
-    $password_hash = !empty($_POST['password']) ? password_hash($_POST['password'], PASSWORD_BCRYPT) : $user['password_hash'];
+    $sub_role = isset($_POST['sub_role']) ? $_POST['sub_role'] : '';  // Pastikan sub_role diset dengan nilai yang benar
+    $password = $_POST['password'];
 
-    // Cek apakah ID baru sudah ada di database
-    $sql_check_id = "SELECT id FROM users WHERE id = ?";
-    $stmt_check_id = $conn->prepare($sql_check_id);
-    $stmt_check_id->bind_param("i", $new_id);
-    $stmt_check_id->execute();
-    $check_id_result = $stmt_check_id->get_result();
-
-    if ($check_id_result->num_rows > 0 && $new_id != $user_id) {
-        $update_error = "ID yang dimasukkan sudah digunakan oleh pengguna lain.";
+    // Validasi input yang diterima
+    if (empty($username) || empty($nama) || empty($nomor_hp) || empty($email) || empty($role)) {
+        $update_error = "Semua field harus diisi!";
     } else {
-        // Proses update data pengguna
-        $sql_update = "
-            UPDATE users
-            SET id = ?, username = ?, nama = ?, nomor_hp = ?, email = ?, role = ?, password_hash = ?
-            WHERE id = ?
-        ";
-        $stmt_update = $conn->prepare($sql_update);
-        $stmt_update->bind_param("issssssi", $new_id, $username, $nama, $nomor_hp, $email, $role, $password_hash, $user_id);
-        
-        if ($stmt_update->execute()) {
-            header("Location: admin-dashboard.php");
-            exit();
+        // Cek apakah username sudah ada di database (kecuali untuk pengguna yang sedang diubah)
+        $sql_check_username = "SELECT id FROM users WHERE username = ? AND id != ?";
+        $stmt_check_username = $conn->prepare($sql_check_username);
+        $stmt_check_username->bind_param("si", $username, $user_id);
+        $stmt_check_username->execute();
+        $check_username_result = $stmt_check_username->get_result();
+
+        if ($check_username_result->num_rows > 0) {
+            $update_error = "Username yang dimasukkan sudah digunakan oleh pengguna lain.";
         } else {
-            $update_error = "Terjadi kesalahan saat memperbarui data.";
+            // Proses update data pengguna
+            $sql_update = "
+    UPDATE users
+    SET username = ?, nama = ?, nomor_hp = ?, email = ?, role = ?, sub_role = ?, id_wilayah = ?
+    WHERE id = ?
+";
+
+$stmt_update = $conn->prepare($sql_update);
+
+// Parameter yang di-bind
+$stmt_update->bind_param("sssssssi", $username, $nama, $nomor_hp, $email, $role, $sub_role, $id_wilayah, $id);
+
+if ($stmt_update->execute()) {
+    // Berhasil update
+} else {
+    // Gagal update
+    echo "Terjadi kesalahan: " . $conn->error;
+}
+
         }
     }
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -104,21 +112,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 
 <div class="container mt-5">
-    <h2 class="text-center mb-4">Edit Data Pengguna</h2>
+    <h2 class="text-center mb-4">Edit Pengguna</h2>
 
     <!-- Tampilkan error jika ada -->
     <?php if ($update_error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($update_error) ?></div>
+    <?php elseif ($update_success): ?>
+        <div class="alert alert-success">Pengguna berhasil diperbarui!</div>
     <?php endif; ?>
 
     <!-- Form Edit Pengguna -->
     <form action="" method="POST">
-        <!-- ID Pengguna -->
-        <div class="mb-3">
-            <label for="id" class="form-label">ID Pengguna</label>
-            <input type="number" class="form-control" id="id" name="id" value="<?= htmlspecialchars($user['id']) ?>" required>
-        </div>
-
         <!-- Username -->
         <div class="mb-3">
             <label for="username" class="form-label">Username</label>
@@ -147,20 +151,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-3">
             <label for="role" class="form-label">Role</label>
             <select class="form-select" id="role" name="role" required>
-                <option value="klien" <?= $user['role'] == 'klien' ? 'selected' : '' ?>>Klien</option>
-                <option value="konselor" <?= $user['role'] == 'konselor' ? 'selected' : '' ?>>Konselor</option>
-                <option value="admin" <?= $user['role'] == 'admin' ? 'selected' : '' ?>>Admin</option>
+                <option value="klien" <?= $user['role'] === 'klien' ? 'selected' : '' ?>>Klien</option>
+                <option value="konselor" <?= $user['role'] === 'konselor' ? 'selected' : '' ?>>Konselor</option>
+                <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
             </select>
         </div>
 
-        <!-- Password -->
+        <!-- Sub Role -->
+        <div class="mb-3">
+            <label for="sub_role" class="form-label">Sub Role</label>
+            <select class="form-select" id="sub_role" name="sub_role">
+                <option value="klien" <?= $user['sub_role'] === 'klien' ? 'selected' : '' ?>>Klien</option>
+                <option value="sebaya" <?= $user['sub_role'] === 'sebaya' ? 'selected' : '' ?>>Sebaya</option>
+                <option value="dewasa" <?= $user['sub_role'] === 'dewasa' ? 'selected' : '' ?>>Dewasa</option>
+                <option value="admin" <?= $user['sub_role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+            </select>
+        </div>
+
+        <!-- Password (Optional) -->
         <div class="mb-3">
             <label for="password" class="form-label">Password (Kosongkan jika tidak diubah)</label>
-            <input type="password" class="form-control" id="password" name="password" placeholder="Kosongkan jika tidak ingin mengganti password">
+            <input type="password" class="form-control" id="password" name="password">
         </div>
 
         <!-- Button Submit -->
-        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+        <button type="submit" class="btn btn-primary">Perbarui Pengguna</button>
     </form>
 
     <!-- Button Kembali -->

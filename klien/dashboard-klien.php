@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'klien') {
 }
 
 $klien_id = $_SESSION['user_id'];
-$nama = htmlspecialchars($_SESSION['nama'] ?? 'Klien');
+$nama = isset($_SESSION['nama']) ? htmlspecialchars($_SESSION['nama']) : 'Klien';
 
 // Inisialisasi variabel pesan feedback
 $feedback_message = '';
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $konselor = $stmt_konselor->get_result()->fetch_assoc();
 
             if (!$konselor) {
-                $feedback_message = "Tidak ada konselor yang tersedia di wilayah ini dengan sub-role '$sub_role'.";
+                $feedback_message = "Saat ini tidak ada konselor yang tersedia karena sedang dalam sesi. Mohon coba lagi nanti ";
                 $feedback_type = "danger";
             } else {
                 $konselor_id = $konselor['id'];
@@ -389,11 +389,22 @@ $konselor_result = $stmt_konselor->get_result();
         </div>
 
         <!-- Main Content -->
-        <div class="content-area">
-            <!-- User Information -->
-            <div class="user-info">
-                Selamat Datang, <?= $nama ?>
+      <div class="content-area">
+    <!-- User Information -->
+    <div class="user-info">
+                <!-- Menampilkan pesan selamat datang dengan nama klien -->
+                <?php 
+                    // Pastikan nama klien ada dalam session
+                    if (!empty($nama)) {
+                        echo "Selamat datang, " . htmlspecialchars($nama);  // Gunakan $nama, bukan $nama_users
+                    } else {
+                        echo "Selamat datang, Klien";  // Default jika nama kosong
+                    }
+                ?>
+
             </div>
+        </div>
+
 
             <!-- Alert Feedback -->
             <?php if ($feedback_message): ?>
